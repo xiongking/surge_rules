@@ -1,0 +1,77 @@
+# 工作流的名称，会显示在 GitHub Actions 页面
+name: 定期转换Clash规则为Surge格式
+
+# 工作流的触发条件
+on:
+  # schedule 关键字表示这是一个定时任务
+  schedule:
+    # cron 表达式，'0 */6 * * *' 代表每隔6小时的整点运行一次
+    # 这个时间是 UTC 时间，比北京时间晚8小时。
+    # 例如 UTC 00:00 是北京时间 08:00。
+    - cron: '0 */6 * * *'
+  
+  # workflow_dispatch 允许你随时进入 Actions 页面手动触发此任务，方便测试
+  workflow_dispatch:
+
+# 工作流包含的具体任务
+jobs:
+  convert-and-push:
+    # 任务运行的虚拟环境，使用最新的 Ubuntu 系统
+    runs-on: ubuntu-latest
+    # 任务包含的具体步骤
+    steps:
+      # 步骤1：下载你的 clash_rules 仓库的最新代码到虚拟机
+      - name: 检出 clash_rules 仓库
+        uses: actions/checkout@v3
+
+      # 步骤2：下载并准备好转换工具 subconverter
+      - name: 下载并准备 subconverter
+        run: |
+          wget https://github.com/tindy2013/subconverter/releases/latest/download/subconverter-linux64.tar.gz
+          tar -xvf subconverter-linux64.tar.gz
+          chmod +x subconverter/subconverter
+
+      # 步骤3：批量转换所有 YAML 规则文件
+      - name: 批量转换所有YAML规则
+        run: |
+          # 创建一个叫 surge_output 的临时文件夹，存放转换结果
+          mkdir surge_output
+          # 使用 for 循环，自动查找当前目录下所有 .yaml 文件
+          for file in *.yaml; do
+            # 从完整文件名中提取不带 .yaml 后缀的部分
+            filename=$(basename "$file" .yaml)
+            # 在日志中打印当前正在转换哪个文件，方便调试
+            echo "正在转换 $file -> surge_output/${filename}.list"
+            # 执行转换命令，将输出文件（例如 direct.list）放入 surge_output 文件夹
+            ./subconverter/subconverter -g -i "$file" -o "surge_output/${filename}.list" -t surge
+          done
+
+      # 步骤4：下载你的 surge_rules 仓库的代码
+      - name: 检出 surge_rules 仓库
+        uses: actions/checkout@v3
+        with:
+          # 【请务必确认】这里是你的目标仓库地址
+          repository: xiongking/surge_rules 
+          # 将目标仓库代码下载到虚拟机的一个名为 'surge_rules_repo' 的子目录中，防止和源仓库代码混淆
+          path: surge_rules_repo
+          # 使用你之前设置的 ACCESS_TOKEN，这样才有权限访问并推送代码
+          token: ${{ secrets.ACCESS_TOKEN }}
+
+      # 步骤5：将转换好的新规则文件，复制到 surge_rules 仓库的目录中
+      - name: 复制新规则文件
+        run: |
+          # 将 surge_output 文件夹里的所有内容，强制覆盖到 surge_rules_repo 文件夹中
+          cp -rf surge_output/. surge_rules_repo/
+
+      # 步骤6：自动提交并推送到你的 surge_rules 仓库
+      - name: 提交并推送更改
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          # 指定操作的目录是刚刚下载的 'surge_rules_repo'
+          repository: surge_rules_repo
+          # 定义自动提交时使用的 Commit Message
+          commit_message: "chore(auto): 定期自动更新 Surge 规则"
+          # 定义提交代码的作者信息，以表明是机器人操作
+          commit_user_name: GitHub Actions Bot
+          commit_user_email: actions@github.com
+          commit_author: GitHub Actions Bot <actions@github.com>
