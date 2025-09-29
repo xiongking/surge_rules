@@ -1,4 +1,4 @@
-name: 转换Clash分流规则为Surge格式
+name: 转换Clash分流规则为Surge格式 (极简可靠版)
 
 on:
   schedule:
@@ -15,32 +15,27 @@ jobs:
         with:
           repository: xiongking/clash_rules
 
-      # 步骤2：下载并准备 subconverter
-      - name: 下载并准备 subconverter
-        run: |
-          wget https://github.com/tindy2013/subconverter/releases/latest/download/subconverter_linux64.tar.gz
-          tar -xvf subconverter_linux64.tar.gz
-          chmod +x subconverter/subconverter
-
-      # 步骤3：批量转换所有YAML规则
+      # 步骤2：批量转换所有YAML规则 (使用 sed 命令)
       - name: 批量转换所有YAML规则
         run: |
-          # 创建一个临时的输出文件夹
           mkdir surge_output
-          
-          # 递归查找所有 .yaml 文件并进行转换
           find . -type f -name "*.yaml" | while read -r file; do
             filename=$(basename "$file" .yaml)
             echo "✅ 正在转换: '$file' -> 'surge_output/${filename}.list'"
             
-            # 【核心修正】恢复使用 subconverter 自身的 -o 参数来指定输出文件
-            ./subconverter/subconverter -g -i "$file" -o "surge_output/${filename}.list" -t surge
+            # 【核心修正】使用 sed 命令，直接从YAML中提取和清理规则
+            # 1. 从 "payload:" 那一行开始读取文件
+            # 2. 删除第一行 (即 "payload:" 本身)
+            # 3. 删除每一行行首的 "- " (包括空格)
+            # 4. 删除所有的单引号 "'"
+            # 5. 将结果保存到新文件中
+            sed -n '/payload:/,$p' "$file" | sed '1d' | sed 's/^[ ]*- //g' | sed "s/'//g" > "surge_output/${filename}.list"
           done
           
           echo "--- 转换完成，检查输出目录内容 ---"
           ls -la surge_output
 
-      # 步骤4：检出用于存放结果的 surge_rules 仓库
+      # 步骤3：检出用于存放结果的 surge_rules 仓库
       - name: 检出 surge_rules 仓库 (目标)
         uses: actions/checkout@v3
         with:
@@ -48,12 +43,12 @@ jobs:
           path: surge_rules_repo
           token: ${{ secrets.ACCESS_TOKEN }}
 
-      # 步骤5：将转换好的新规则文件，复制到目标仓库中
+      # 步骤4：将转换好的新规则文件，复制到目标仓库中
       - name: 复制新规则文件
         run: |
           cp -rf surge_output/. surge_rules_repo/
 
-      # 步骤6：自动提交并推送到 surge_rules 仓库
+      # 步骤5：自动提交并推送到 surge_rules 仓库
       - name: 提交并推送更改
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
