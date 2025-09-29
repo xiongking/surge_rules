@@ -24,35 +24,52 @@ jobs:
       - name: 检出 clash_rules 仓库
         uses: actions/checkout@v3
 
-      # 步骤2：下载并准备好转换工具 subconverter
+      # 步骤2：下载并准备好转换工具 subconverter (已修复链接)
       - name: 下载并准备 subconverter
         run: |
           wget https://github.com/tindy2013/subconverter/releases/latest/download/subconverter_linux64.tar.gz
           tar -xvf subconverter_linux64.tar.gz
           chmod +x subconverter/subconverter
 
-      # 步骤3：批量转换所有 YAML 规则文件
+      # 步骤3：批量转换所有YAML规则 (最终修正版 + 包含调试信息)
       - name: 批量转换所有YAML规则
         run: |
-          # 创建一个叫 surge_output 的临时文件夹，存放转换结果
+          echo "================== 开始调试 =================="
+          echo "第一步：检查当前工作目录"
+          pwd
+          echo
+          echo "第二步：列出当前目录下的所有文件和文件夹"
+          ls -la
+          echo "================== 调试结束 =================="
+          echo
+
           mkdir surge_output
-          # 使用 for 循环，自动查找当前目录下所有 .yaml 文件
-          for file in *.yaml; do
-            # 从完整文件名中提取不带 .yaml 后缀的部分
+          
+          # 使用 find 命令来递归查找所有子目录中的 .yaml 文件
+          # 然后通过 while read 循环来逐个处理，这样即使文件名包含空格也能正确处理
+          find . -type f -name "*.yaml" | while read -r file; do
+            # 从文件路径中提取不带扩展名的基本文件名
+            # 例如，如果找到 './rules/direct.yaml'，这里会得到 'direct'
             filename=$(basename "$file" .yaml)
-            # 在日志中打印当前正在转换哪个文件，方便调试
-            echo "正在转换 $file -> surge_output/${filename}.list"
-            # 执行转换命令，将输出文件（例如 direct.list）放入 surge_output 文件夹
+            
+            echo "✅ 找到并正在转换: '$file' -> 'surge_output/${filename}.list'"
+            # 执行转换命令，输入是找到的文件路径
             ./subconverter/subconverter -g -i "$file" -o "surge_output/${filename}.list" -t surge
           done
 
-      # 步骤4：下载你的 surge_rules 仓库的代码
+          echo
+          echo "================== 检查输出 =================="
+          echo "检查 surge_output 目录中的内容，确认文件已生成:"
+          ls -la surge_output
+          echo "================== 检查结束 =================="
+
+      # 步骤4：检出你的 surge_rules 仓库的代码
       - name: 检出 surge_rules 仓库
         uses: actions/checkout@v3
         with:
           # 【请务必确认】这里是你的目标仓库地址
           repository: xiongking/surge_rules 
-          # 将目标仓库代码下载到虚拟机的一个名为 'surge_rules_repo' 的子目录中，防止和源仓库代码混淆
+          # 将目标仓库代码下载到虚拟机的一个名为 'surge_rules_repo' 的子目录中
           path: surge_rules_repo
           # 使用你之前设置的 ACCESS_TOKEN，这样才有权限访问并推送代码
           token: ${{ secrets.ACCESS_TOKEN }}
