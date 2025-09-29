@@ -1,0 +1,4 @@
+DOMAIN-SUFFIX,mywhoosh.com
+DOMAIN-SUFFIX,my-whoosh.com
+IP-CIDR,54.0.0.0/16
+#  - SRC-IP-CIDR,54.0.0.0/16
