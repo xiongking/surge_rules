@@ -1,4 +1,4 @@
-name: 转换Clash规则为Surge格式
+name: 转换Clash分流规则为Surge格式
 
 on:
   schedule:
@@ -9,7 +9,7 @@ jobs:
   convert-and-push:
     runs-on: ubuntu-latest
     steps:
-      # 步骤1：下载存放 YAML 文件的 clash_rules 仓库
+      # 步骤1：下载存放 YAML 规则的 clash_rules 仓库
       - name: 检出 clash_rules 仓库 (源)
         uses: actions/checkout@v3
         with:
@@ -25,15 +25,22 @@ jobs:
       # 步骤3：批量转换所有YAML规则
       - name: 批量转换所有YAML规则
         run: |
-          mkdir -p surge_rules_repo
+          # 创建一个临时的输出文件夹
+          mkdir surge_output
+          
+          # 递归查找所有 .yaml 文件并进行转换
           find . -type f -name "*.yaml" | while read -r file; do
             filename=$(basename "$file" .yaml)
-            echo "✅ 正在转换: '$file' -> 'surge_rules_repo/${filename}.list'"
-            # 【核心修正】直接将输出重定向到目标文件夹，这是最直接可靠的方式
-            ./subconverter/subconverter -g -i "$file" -t surge > surge_rules_repo/${filename}.list
+            echo "✅ 正在转换: '$file' -> 'surge_output/${filename}.list'"
+            
+            # 【核心修正】恢复使用 subconverter 自身的 -o 参数来指定输出文件
+            ./subconverter/subconverter -g -i "$file" -o "surge_output/${filename}.list" -t surge
           done
+          
+          echo "--- 转换完成，检查输出目录内容 ---"
+          ls -la surge_output
 
-      # 步骤4：检出目标仓库的 .git 历史记录（仅用于提交）
+      # 步骤4：检出用于存放结果的 surge_rules 仓库
       - name: 检出 surge_rules 仓库 (目标)
         uses: actions/checkout@v3
         with:
@@ -41,12 +48,17 @@ jobs:
           path: surge_rules_repo
           token: ${{ secrets.ACCESS_TOKEN }}
 
-      # 步骤5：提交并推送更改
+      # 步骤5：将转换好的新规则文件，复制到目标仓库中
+      - name: 复制新规则文件
+        run: |
+          cp -rf surge_output/. surge_rules_repo/
+
+      # 步骤6：自动提交并推送到 surge_rules 仓库
       - name: 提交并推送更改
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
           repository: surge_rules_repo
-          commit_message: "chore(auto): 定期自动更新 Surge 规则"
+          commit_message: "chore(auto): 定期更新 Surge 分流规则"
           commit_user_name: GitHub Actions Bot
           commit_user_email: actions@github.com
           commit_author: GitHub Actions Bot <actions@github.com>
