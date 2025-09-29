@@ -1,7 +1,5 @@
-# 工作流的名称，会显示在 GitHub Actions 页面
-name: 定期转换Clash规则为Surge格式
+name: 转换Clash规则为Surge格式
 
-# 工作流的触发条件
 on:
   schedule:
     - cron: '0 */6 * * *'
@@ -11,14 +9,13 @@ jobs:
   convert-and-push:
     runs-on: ubuntu-latest
     steps:
-      # 步骤1：下载存放 YAML 文件的 clash_rules 仓库 (【核心修正】)
+      # 步骤1：下载存放 YAML 文件的 clash_rules 仓库
       - name: 检出 clash_rules 仓库 (源)
         uses: actions/checkout@v3
         with:
-          # 明确指定要去下载哪个仓库的代码作为原料
           repository: xiongking/clash_rules
 
-      # 步骤2：下载并准备好转换工具 subconverter
+      # 步骤2：下载并准备 subconverter
       - name: 下载并准备 subconverter
         run: |
           wget https://github.com/tindy2013/subconverter/releases/latest/download/subconverter_linux64.tar.gz
@@ -28,15 +25,15 @@ jobs:
       # 步骤3：批量转换所有YAML规则
       - name: 批量转换所有YAML规则
         run: |
-          echo "在仓库的所有文件夹中查找并转换 .yaml 文件..."
-          mkdir surge_output
+          mkdir -p surge_rules_repo
           find . -type f -name "*.yaml" | while read -r file; do
             filename=$(basename "$file" .yaml)
-            echo "✅ 找到并正在转换: '$file' -> 'surge_output/${filename}.list'"
-            ./subconverter/subconverter -g -i "$file" -o "surge_output/${filename}.list" -t surge
+            echo "✅ 正在转换: '$file' -> 'surge_rules_repo/${filename}.list'"
+            # 【核心修正】直接将输出重定向到目标文件夹，这是最直接可靠的方式
+            ./subconverter/subconverter -g -i "$file" -t surge > surge_rules_repo/${filename}.list
           done
 
-      # 步骤4：检出用于存放结果的 surge_rules 仓库
+      # 步骤4：检出目标仓库的 .git 历史记录（仅用于提交）
       - name: 检出 surge_rules 仓库 (目标)
         uses: actions/checkout@v3
         with:
@@ -44,12 +41,7 @@ jobs:
           path: surge_rules_repo
           token: ${{ secrets.ACCESS_TOKEN }}
 
-      # 步骤5：将转换好的新规则文件，复制到 surge_rules 仓库的目录中
-      - name: 复制新规则文件
-        run: |
-          cp -rf surge_output/. surge_rules_repo/
-
-      # 步骤6：自动提交并推送到 surge_rules 仓库
+      # 步骤5：提交并推送更改
       - name: 提交并推送更改
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
