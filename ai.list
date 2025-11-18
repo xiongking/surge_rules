@@ -1,3 +1,4 @@
+
 # apple ai
 DOMAIN,apple-relay.apple.com
 DOMAIN,apple-relay.fastly-edge.com
@@ -8,7 +9,7 @@ DOMAIN,cp4.cloudflare.com
 DOMAIN,gspe1-ssl.ls.apple.com
 DOMAIN,apps.mzstatic.com
 
-
+DOMAIN,apps.mzstatic.com
 # > Ai general rules
 DOMAIN,api.statsig.com
 DOMAIN,browser-intake-datadoghq.com
